@@ -54,7 +54,7 @@ ExtendScript 에 넘기는 경로(`__CUTS_JSON__`, `__OUT_WAV__`)는 슬래시(/
 ## QE 편집 한계 (macOS 와 동일)
 
 - MCP 기본 도구(`razor_all_tracks`/`ripple_delete`/`add_text_overlay`)는 2026에서 미동작 → execute_extendscript 직접.
-- 캡션 트랙은 스크립트로 못 올림(DOM/QE 미노출) → SRT import 후 사용자가 타임라인에 드래그.
+- 자막은 `createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)` 로 타임라인에 자동 생성(수동 드래그 불필요). for..in 으론 안 보이는 네이티브 메서드지만 동작.
 
 ## 증상별 (macOS 와 공통)
 

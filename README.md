@@ -66,7 +66,7 @@ Claude는 영상을 직접 듣지 못하므로, ffmpeg(무음 타임스탬프)·
 - **MCP 기본 편집 도구는 2026에서 버그**(성공 보고만, 미실행) → 모든 편집은 `execute_extendscript` 직접 호출.
 - **프레임 정확 컷**(비표준 fps): `setPlayerPosition(frameTicks)` → `CTI.timecode` → `razor(tc)`, ripple는 `qeItem.remove(true,true)`.
 - **오디오 export**: `exportAsMediaDirect(out, WAV_Mono_16bit_16kHz.epr, 0)` — 현재 타임라인 그대로(사람이 다듬어도 정확).
-- **자막 한계**: 캡션 트랙은 스크립트로 못 올림(2026 API 미노출) → SRT import 후 타임라인 드래그 1회 수동.
+- **자막 자동 삽입**: SRT import 후 `createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)` 로 타임라인에 자동 생성(수동 드래그 불필요). 이 메서드는 `for..in` 으론 안 보이는 네이티브 메서드지만 실제 동작한다.
 
 ## 의존성
 

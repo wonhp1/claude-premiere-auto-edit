@@ -8,7 +8,7 @@ description: >-
   프리미어를 Claude가 직접 제어해 타임라인에서 실시간으로 컷이 적용되는 게 특징이다. dB 임계값과
   최소 무음 길이는 사용자 요청대로 조절한다. 자막 생성도 지원한다("자막 만들어줘", "자막 달아줘",
   "받아쓰기", "subtitle", "캡션") — 현재 시퀀스 오디오를 export → whisper.cpp로 받아쓰기 → SRT를
-  프리미어에 import 까지 자동(타임라인에 얹는 마지막 드래그만 수동, 2026 캡션 API 한계). 모든 편집은
+  프리미어에 import → createCaptionTrack 으로 타임라인에 자막을 자동으로 올리기까지 전부 자동(수동 드래그 불필요). 모든 편집은
   MCP 기본 도구 대신 execute_extendscript 직접 호출로 처리한다(2026에서 기본 도구가 버그라서).
 ---
 
@@ -114,14 +114,14 @@ bash <skill-dir>/scripts/transcribe.sh /tmp/cut_audio.wav ko
 → whisper.cpp(`whisper-cli`) + ggml `large-v3` 모델로 `/tmp/cut_audio.srt` 생성. 모델·바이너리는 자동 탐색.
 SRT 타임스탬프는 잘린 시퀀스(0 기준) 시간축과 일치하므로 그대로 시퀀스에 맞다.
 
-### S3) 자막을 프리미어에 넣기 (직접 ExtendScript)
+### S3) 자막을 타임라인에 올리기 (완전 자동)
 
-SRT를 프로젝트로 import 한 뒤 활성 시퀀스에 캡션 트랙으로 올린다 (`references/subtitles.md` 참고).
-MCP의 `add_text_overlay`는 2026에서 버그이므로 쓰지 않는다.
+`assets/add_subtitles.jsx`를 읽어 `execute_extendscript`로 실행한다. SRT를 프로젝트로 import 하고
+`createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)`로 **자막 캡션 트랙을 타임라인에 자동 생성**한다.
+수동 드래그 불필요. (MCP의 `add_text_overlay`는 2026 버그라 안 쓴다.)
 
-> ⚠️ 자막 삽입(S3)의 정확한 ExtendScript 호출은 Premiere 버전별 캡션 API 차이가 있어
-> `references/subtitles.md`에 검증된 방법을 정리한다. 막히면 SRT 파일 경로를 사용자에게 알려
-> 수동 import(File → Import → SRT)로 폴백한다.
+> 참고: `createCaptionTrack`은 ExtendScript `for..in`으로는 안 보이지만(네이티브 메서드) 실제로는 동작한다.
+> `CAPTION_FORMAT_SUBTITLE`(0)=크리에이터 자막, `_708`(2)=방송용 CC. 자세한 건 `references/subtitles.md`.
 
 ### 옵션 — 언어/번역
 

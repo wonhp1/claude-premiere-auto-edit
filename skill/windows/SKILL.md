@@ -41,9 +41,10 @@ S1. **오디오 export** — `assets/export_sequence_audio.jsx` 의 `__OUT_WAV__
 치환해 execute_extendscript 실행(timeout 180000). 현재 시퀀스 그대로 16kHz 모노로 → 사람이 다듬어도 정확.
 S2. **받아쓰기** — `python scripts/transcribe.py "<WORK>/cut_audio.wav" --lang ko --workdir "<WORK>"`
 → `<WORK>\cut_audio.srt`. 모델은 faster-whisper 가 공용 캐시에 자동 다운로드/재사용.
-S3. **자막 넣기** — execute_extendscript 로 `app.project.importFiles(["<WORK>/cut_audio.srt"], true, app.project.rootItem, false)`
-로 SRT 를 프로젝트에 import. **타임라인에 얹는 건 스크립트 불가**(2026 캡션 API 한계) →
-사용자에게 "프로젝트 패널의 cut_audio.srt 를 타임라인에 드래그" 안내(또는 File→Import).
+S3. **자막 타임라인에 올리기 (완전 자동)** — `assets/add_subtitles.jsx` 의 `__SRT_PATH__` 를
+`<WORK>/cut_audio.srt`(슬래시 경로)로 치환해 execute_extendscript 실행. SRT import +
+`createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)` 로 자막 트랙 자동 생성. 수동 드래그 불필요.
+(createCaptionTrack 은 for..in 으로 안 보이는 네이티브 메서드지만 실제 동작.)
 
 ## 원칙
 
