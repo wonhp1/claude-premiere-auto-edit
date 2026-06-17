@@ -1,0 +1,14 @@
+{
+  "_설명": "이 항목을 claude_desktop_config.json 의 mcpServers 안에 추가하세요. install.sh 를 쓰면 자동으로 등록됩니다. 경로는 본인 환경에 맞게 바꾸세요.",
+  "_경로_확인": "command(node 경로)=  command -v node   /   args(패키지 경로)=  echo $(npm root -g)/premiere-pro-mcp/dist/index.js",
+  "mcpServers": {
+    "premiere-pro": {
+      "command": "/usr/local/bin/node",
+      "args": ["/<npm-global>/lib/node_modules/premiere-pro-mcp/dist/index.js"],
+      "env": {
+        "PREMIERE_TEMP_DIR": "/tmp/premiere-mcp-bridge",
+        "DEBUG": "0"
+      }
+    }
+  }
+}
