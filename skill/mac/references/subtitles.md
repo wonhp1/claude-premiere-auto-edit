@@ -1,40 +1,51 @@
-# 자막(캡션) 삽입 — 전 과정 자동화
+# 자막(캡션) 생성 — v2 (단어 타임스탬프 → 1줄 자막, 전 과정 자동)
 
-## 전체 흐름 (전부 스크립트)
+## 흐름 (전부 스크립트)
 
-1. **오디오 export** — `assets/export_sequence_audio.jsx` (execute_extendscript). 현재 시퀀스를 16kHz 모노 WAV로. ✅
-2. **받아쓰기 → SRT** — `scripts/transcribe.sh` (whisper.cpp large-v3). SRT 타임스탬프는 시퀀스(0 기준)와 일치. ✅
-3. **자막 타임라인에 올리기** — `assets/add_subtitles.jsx` (execute_extendscript). SRT import + 캡션 트랙 생성. ✅
+1. **오디오 export** — `assets/export_sequence_audio.jsx` → `<WORK>/cut_audio.wav`(16kHz 모노). 현재 시퀀스 그대로.
+2. **단어별 받아쓰기** — `scripts/transcribe_words.py` → `<WORK>/words.json` (faster-whisper, 정확한 단어 시간).
+3. **1줄 분할** — `scripts/segment_subtitles.py` → `<WORK>/cut_audio.srt` (쉼·연결어미 기준 자연스러운 1줄, 정확 타이밍).
+4. **타임라인 삽입** — `assets/add_subtitles.jsx` → `createCaptionTrack`로 자동 생성. 수동 드래그 불필요.
 
-→ **수동 드래그 단계 없음.** 3번까지 자동으로 끝난다.
+## 왜 v2(단어 타임스탬프)인가
 
-## 핵심: createCaptionTrack (직접 호출)
+- whisper.cpp는 세그먼트 첫 단어 시간이 늘어나는 버그가 있어(예: 첫 단어 0.7→7.0초) 타이밍이 부정확.
+- faster-whisper `word_timestamps`는 정확 → 첫 자막이 실제 말 시작점(예: 5.82초)에 맞고, 쉼 기반 분할이 가능.
+- 정확한 단어 시간 덕에 자막이 길어도 싱크가 안 밀린다.
+
+## 분할 규칙 (segment_subtitles.py)
+
+- **1줄 고정**, 길이는 내용 따라 적응. `--soft`(기본 16)는 화면 넘침 방지용 소프트 상한, 하드 상한 = soft+8.
+- 우선순위: 실제 **쉼(gap≥0.45s)** > 연결어미(고/는데/서…)·구두점 > 길이.
+- glue: 의존명사("수","것","때"…)·"하는/할/있는" 등 앞에서 안 끊음. look-ahead로 상한 내 최적 지점 선택.
+- 짧은 고아 줄(≤5자)은 앞줄에 병합.
+
+## 핵심 API — createCaptionTrack
 
 ```javascript
-var seq = app.project.activeSequence;
 app.project.importFiles(
-  ["/tmp/cut_audio.srt"],
+  ["<WORK>/cut_audio.srt"],
   true,
   app.project.rootItem,
   false,
 );
-// 프로젝트에서 cut_audio.srt projectItem 찾은 뒤:
+// 프로젝트에서 srt projectItem 찾은 뒤:
 seq.createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE); // → true
 ```
 
-- **주의(과거의 함정):** `for (var k in seq)` 로는 `createCaptionTrack`이 **안 보인다**(ExtendScript가
-  네이티브 메서드를 열거 안 함). 그래서 "캡션 API 없음"으로 오판하기 쉽다. 실제로는 존재하니 **직접 호출**하면 된다.
-- **포맷 상수**: `CAPTION_FORMAT_SUBTITLE`=0(크리에이터 자막, 권장), `_608`=1, `_708`=2(방송용 CC),
-  `_TELETEXT`=3, `_OPEN_EBU`=65539, `_OP42`=131075, `_OP47`=196611.
-- **startTime** 인자는 초(0). 반환값 `true`면 성공.
+- ⚠️ `for..in`으론 안 보이는 네이티브 메서드 → 직접 호출. 포맷: SUBTITLE=0(권장), 608=1, 708=2.
+- 반복 생성 시 같은 SRT projectItem을 **재사용하면 no-op**(트랙이 안 생김) → 새 파일명으로 fresh import.
+- 캡션 트랙 **삭제는 스크립트 불가**(2026 DOM/QE 미노출) → 사용자가 UI에서 트랙 헤더 우클릭 → 트랙 삭제.
 
-## 폴백 (혹시 createCaptionTrack 실패 시)
+## 속도 주의 (Mac)
 
-구버전/예외로 실패하면, SRT는 이미 프로젝트에 import 돼 있으니 사용자가 프로젝트 패널의 `cut_audio.srt`를
-타임라인에 드래그(또는 File→Import)하면 된다. 하지만 2025/2026에서는 `createCaptionTrack`이 정상 동작하므로
-보통 필요 없다.
+faster-whisper large-v3는 Mac CPU에서 느림(7분 영상 ~20분, GPU 없음). 급하면 `--model medium`.
+Windows/GPU에선 빠름. (CUT 단계는 ffmpeg라 빠르고 무관.)
 
-## 대안 (선택)
+## 의존성
 
-- **번인(하드섭)**: ffmpeg로 SRT를 영상에 태우기 — 프리미어 밖, 편집 불가. 특수 상황에만.
-- **텍스트 그래픽 개별 생성**: `add_text_overlay`(MCP)는 2026 버그. 편집 가능한 "캡션"이 아니라 그래픽이 됨. 비권장.
+`pip install faster-whisper` (모델은 공용 캐시에 자동 다운로드). 컷 단계엔 ffmpeg 필요.
+
+## 폴백
+
+`createCaptionTrack` 실패 시: SRT는 이미 import 됐으니 사용자가 프로젝트 패널의 SRT를 타임라인에 드래그. (2025/2026에선 보통 정상 동작.)

@@ -34,9 +34,9 @@ cp -R mac "$HOME/.claude/skills/premiere-auto-edit"
 
 1. **premiere-pro MCP 연결 + CSInterface.js 패치** — 가장 중요. 설치 키트는 이 레포의 [`../mcp-setup/`](../mcp-setup/) 참고.
    (Premiere 2025/2026의 CEP 12 evalScript 버그를 고쳐야 모든 게 동작함. Windows 경로는 windows/references 참고.)
-2. **의존성**
-   - macOS: `ffmpeg`, `whisper-cpp`(+ggml large-v3 모델) — `brew install ffmpeg whisper-cpp`
-   - Windows: `pip install faster-whisper imageio-ffmpeg` (Python3 필요, 모델 자동 다운로드)
+2. **의존성** (Python3 필요)
+   - 자막: `pip install faster-whisper` (모델 자동 다운로드; large-v3는 Mac CPU 느림→`--model medium`, Windows GPU 빠름)
+   - 컷: `ffmpeg` (macOS `brew install ffmpeg` / Windows `pip install imageio-ffmpeg`)
 
 ## 동작 원리
 

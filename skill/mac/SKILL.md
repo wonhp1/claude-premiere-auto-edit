@@ -7,8 +7,8 @@ description: >-
   하거나, 프리미어 타임라인의 무음·여백·쉼을 줄여 영상을 짧게 만들고 싶어 할 때 반드시 사용한다.
   프리미어를 Claude가 직접 제어해 타임라인에서 실시간으로 컷이 적용되는 게 특징이다. dB 임계값과
   최소 무음 길이는 사용자 요청대로 조절한다. 자막 생성도 지원한다("자막 만들어줘", "자막 달아줘",
-  "받아쓰기", "subtitle", "캡션") — 현재 시퀀스 오디오를 export → whisper.cpp로 받아쓰기 → SRT를
-  프리미어에 import → createCaptionTrack 으로 타임라인에 자막을 자동으로 올리기까지 전부 자동(수동 드래그 불필요). 모든 편집은
+  "받아쓰기", "subtitle", "캡션") — 시퀀스 오디오 export → faster-whisper 단어 타임스탬프 → 쉼 기반 1줄 분할 →
+  createCaptionTrack 으로 타임라인에 자막을 정확한 타이밍으로 자동 생성까지 전부 자동(수동 드래그 불필요). 모든 편집은
   MCP 기본 도구 대신 execute_extendscript 직접 호출로 처리한다(2026에서 기본 도구가 버그라서).
 ---
 
@@ -92,37 +92,46 @@ Premiere 2026에서 MCP의 `razor_all_tracks` / `ripple_delete` / `add_text_over
 프레임 정확도(비표준 fps 대응)의 핵심 기법은 `assets/cut_silence.jsx` 주석과
 `references/setup-and-troubleshooting.md`에 정리돼 있다. 컷이 "성공인데 안 잘리면" 이 방식인지 먼저 확인한다.
 
-## 자막 생성 (Whisper → SRT → import)
+## 자막 생성 (단어 타임스탬프 → 1줄 자막, 완전 자동)
 
 자막은 "지금 타임라인"의 오디오에 맞아야 한다. AI 컷 후 사람이 더 다듬었을 수도 있으므로,
 낡은 `cuts.json`이 아니라 **현재 시퀀스를 그대로 export** 해서 그 오디오를 받아쓴다.
+산출물(`cut_audio.wav`, `words.json`, `cut_audio.srt`)은 작업 폴더에 둔다(아래 `<WORK>`; Mac은 `/tmp` 기본).
 
 ### S1) 현재 시퀀스 오디오만 export
 
-`assets/export_sequence_audio.jsx`를 읽어 `execute_extendscript`로 실행 (timeout 넉넉히, 예: 180000).
-→ `/tmp/cut_audio.wav` (16kHz 모노) 생성. 영상 없이 오디오만이라 빠르다. 현재 타임라인 상태를 정확히 반영한다.
-(MCP export 도구는 2026에서 불안정 → `exportAsMediaDirect` 직접 호출.)
+`assets/export_sequence_audio.jsx`를 `execute_extendscript`로 실행 (timeout 예: 180000).
+→ `<WORK>/cut_audio.wav` (16kHz 모노). 오디오만이라 빠르고, 현재 타임라인을 정확히 반영.
+(MCP export 도구는 2026 불안정 → `exportAsMediaDirect` 직접 호출.)
 
-### S2) 받아쓰기 → SRT
-
-`scripts/transcribe.sh`를 실행한다:
+### S2) 단어별 받아쓰기 → words.json
 
 ```bash
-bash <skill-dir>/scripts/transcribe.sh /tmp/cut_audio.wav ko
+python <skill-dir>/scripts/transcribe_words.py <WORK>/cut_audio.wav --lang ko --workdir <WORK>
 ```
 
-→ whisper.cpp(`whisper-cli`) + ggml `large-v3` 모델로 `/tmp/cut_audio.srt` 생성. 모델·바이너리는 자동 탐색.
-SRT 타임스탬프는 잘린 시퀀스(0 기준) 시간축과 일치하므로 그대로 시퀀스에 맞다.
+→ faster-whisper(`word_timestamps`)로 **정확한 단어 시간**을 어절 단위 `<WORK>/words.json`로.
+GPU 있으면 빠름. **Mac CPU는 large-v3가 느림(~20분)** — 급하면 `--model medium`. (pip install faster-whisper 필요)
 
-### S3) 자막을 타임라인에 올리기 (완전 자동)
+### S3) 1줄 자막으로 분할 → SRT
 
-`assets/add_subtitles.jsx`를 읽어 `execute_extendscript`로 실행한다. SRT를 프로젝트로 import 하고
-`createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)`로 **자막 캡션 트랙을 타임라인에 자동 생성**한다.
-수동 드래그 불필요. (MCP의 `add_text_overlay`는 2026 버그라 안 쓴다.)
+```bash
+python <skill-dir>/scripts/segment_subtitles.py --workdir <WORK> --soft 16
+```
 
-> 참고: `createCaptionTrack`은 ExtendScript `for..in`으로는 안 보이지만(네이티브 메서드) 실제로는 동작한다.
-> `CAPTION_FORMAT_SUBTITLE`(0)=크리에이터 자막, `_708`(2)=방송용 CC. 자세한 건 `references/subtitles.md`.
+→ 실제 **쉼(pause)·연결어미** 기준으로 자연스럽게 1줄씩 분할, 정확한 타이밍으로 `<WORK>/cut_audio.srt` 생성.
+1줄 고정 + 길이는 내용 따라 적응(soft 상한만 화면 넘침 방지). 사용자가 "더 짧게"면 `--soft` 낮춤.
 
-### 옵션 — 언어/번역
+### S4) 자막을 타임라인에 올리기 (완전 자동)
 
-`transcribe.sh`의 2번째 인자가 언어(`ko`, `en` 등). 영어 번역 자막이 필요하면 whisper 번역 옵션 사용.
+`assets/add_subtitles.jsx`를 `execute_extendscript`로 실행. SRT를 import 하고
+`createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)`로 **자막 트랙을 자동 생성**한다. 수동 드래그 불필요.
+
+> 참고: `createCaptionTrack`은 `for..in`엔 안 보이는 네이티브 메서드지만 동작한다.
+> `CAPTION_FORMAT_SUBTITLE`(0)=크리에이터 자막, `_708`(2)=방송 CC. 자세한 건 `references/subtitles.md`.
+
+### 옵션
+
+- 언어/번역: `transcribe_words.py --lang en` 등.
+- 자막 길이: `segment_subtitles.py --soft 14`(짧게) ~ `--soft 18`(여유).
+- 속도 우선(Mac): `transcribe_words.py --model medium`.

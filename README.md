@@ -71,8 +71,9 @@ Claude는 영상을 직접 듣지 못하므로, ffmpeg(무음 타임스탬프)·
 ## 의존성
 
 - 공통: Node.js(MCP), `premiere-pro-mcp`
-- macOS: `brew install ffmpeg whisper-cpp` (+ ggml large-v3 모델)
-- Windows: `pip install faster-whisper imageio-ffmpeg` (Python3, 모델 자동 다운로드)
+- 자막: `pip install faster-whisper` (모델 자동 다운로드; large-v3는 Mac CPU 느림→`--model medium` 가능, Windows GPU는 빠름)
+- 컷: `ffmpeg` (macOS `brew install ffmpeg` / Windows `pip install imageio-ffmpeg` 또는 winget)
+- Python3 필요
 
 ## 라이선스
 

@@ -39,9 +39,12 @@ Python 스크립트엔 `--workdir <WORK>`, ExtendScript 토큰엔 슬래시 경�
 
 S1. **오디오 export** — `assets/export_sequence_audio.jsx` 의 `__OUT_WAV__` 를 `<WORK>/cut_audio.wav` (슬래시)로
 치환해 execute_extendscript 실행(timeout 180000). 현재 시퀀스 그대로 16kHz 모노로 → 사람이 다듬어도 정확.
-S2. **받아쓰기** — `python scripts/transcribe.py "<WORK>/cut_audio.wav" --lang ko --workdir "<WORK>"`
-→ `<WORK>\cut_audio.srt`. 모델은 faster-whisper 가 공용 캐시에 자동 다운로드/재사용.
-S3. **자막 타임라인에 올리기 (완전 자동)** — `assets/add_subtitles.jsx` 의 `__SRT_PATH__` 를
+S2. **단어별 받아쓰기** — `python scripts/transcribe_words.py "<WORK>/cut_audio.wav" --lang ko --workdir "<WORK>"`
+→ `<WORK>\words.json` (faster-whisper word_timestamps, 정확한 단어 시간). 모델 공용 캐시 자동.
+Windows는 GPU(CUDA)면 빠름. (pip install faster-whisper)
+S3. **1줄 분할** — `python scripts/segment_subtitles.py --workdir "<WORK>" --soft 16`
+→ 쉼·연결어미 기준 자연스러운 1줄 자막을 정확한 타이밍으로 `<WORK>\cut_audio.srt` 생성. 더 짧게는 `--soft 14`.
+S4. **자막 타임라인에 올리기 (완전 자동)** — `assets/add_subtitles.jsx` 의 `__SRT_PATH__` 를
 `<WORK>/cut_audio.srt`(슬래시 경로)로 치환해 execute_extendscript 실행. SRT import +
 `createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)` 로 자막 트랙 자동 생성. 수동 드래그 불필요.
 (createCaptionTrack 은 for..in 으로 안 보이는 네이티브 메서드지만 실제 동작.)
