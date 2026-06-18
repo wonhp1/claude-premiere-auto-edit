@@ -113,14 +113,17 @@ python <skill-dir>/scripts/transcribe_words.py <WORK>/cut_audio.wav --lang ko --
 → faster-whisper(`word_timestamps`)로 **정확한 단어 시간**을 어절 단위 `<WORK>/words.json`로.
 GPU 있으면 빠름. **Mac CPU는 large-v3가 느림(~20분)** — 급하면 `--model medium`. (pip install faster-whisper 필요)
 
-### S3) 1줄 자막으로 분할 → SRT
+### S3) 쉼 기반 1줄 자막으로 분할 → SRT
 
 ```bash
-python <skill-dir>/scripts/segment_subtitles.py --workdir <WORK> --soft 16
+python <skill-dir>/scripts/segment_subtitles.py --workdir <WORK> --soft 16 --gap 0.4
 ```
 
-→ 실제 **쉼(pause)·연결어미** 기준으로 자연스럽게 1줄씩 분할, 정확한 타이밍으로 `<WORK>/cut_audio.srt` 생성.
-1줄 고정 + 길이는 내용 따라 적응(soft 상한만 화면 넘침 방지). 사용자가 "더 짧게"면 `--soft` 낮춤.
+→ **말할 때만 자막이 뜨도록** 분할: 단어 간격이 `--gap`(기본 0.4초) 이상이면 자막을 끊고 끝을 말끝+여운으로
+닫아 **쉼 구간엔 빈 화면**(자막 없음)이 된다. 같은 말 덩어리 안은 연속. 1줄 고정, 길이는 내용 따라 적응.
+정확한 타이밍으로 `<WORK>/cut_audio.srt` 생성. 최소 표시 0.5초 보장(깜빡임 방지).
+
+- 너무 자주 바뀌면 `--gap 0.6`(덜 쪼갬), 더 잘게는 `--gap 0.3`. 줄 길이는 `--soft 14`(짧게)~`18`(여유).
 
 ### S4) 자막을 타임라인에 올리기 (완전 자동)
 
@@ -134,4 +137,5 @@ python <skill-dir>/scripts/segment_subtitles.py --workdir <WORK> --soft 16
 
 - 언어/번역: `transcribe_words.py --lang en` 등.
 - 자막 길이: `segment_subtitles.py --soft 14`(짧게) ~ `--soft 18`(여유).
+- 쉼 민감도: `segment_subtitles.py --gap 0.3`(잘게 분리) ~ `--gap 0.6`(덜 분리).
 - 속도 우선(Mac): `transcribe_words.py --model medium`.
