@@ -1,3 +1,7 @@
+> ⚠️ **npm `premiere-pro-mcp@1.1.1` 전용 기록이다. 1.31.0 이상에서는 쓰지 말 것.**
+> 1.31.0은 `evalScript` 버그가 이미 고쳐져 있고, 이 패치를 덮어쓰면 최신 커넥터가 옛 파일로 되돌아가 망가진다.
+> `install.sh`는 설치된 버전이 1.1.1이 아니면 멈춘다. 최신 버전 설치·연결은 레포 최상위의 [`premiere-mcp-setup/`](../../premiere-mcp-setup/)을 쓴다.
+
 # Premiere Pro × Claude MCP 연결 키트 (CEP 12 버그 패치 포함)
 
 Claude(또는 Claude Code / Codex 등 MCP 클라이언트)로 **Adobe Premiere Pro 를 직접 제어**하기 위한 설치 키트입니다.

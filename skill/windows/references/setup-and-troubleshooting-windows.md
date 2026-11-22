@@ -1,66 +1,49 @@
-# Windows 설정 & 문제 해결
+# Windows 설정과 문제 해결
 
-> ⚠️ **미검증**: 이 Windows 버전은 macOS 검증본을 기준으로 크로스플랫폼 설계한 것이며, 실제 Windows 환경에서
-> 아직 검증되지 않았습니다. 동작 보고/수정 환영합니다.
+> ⚠️ **미검증**: 이 Windows 버전은 macOS 검증본(premiere-pro-mcp 1.31.0, Premiere Pro 2027)과 같은 MCP 도구를 쓰도록 맞춘 설계본이다. 실제 Windows에서는 아직 확인하지 않았다. 동작 보고·수정 환영.
 
-## 의존성 (brew 없이 pip 중심)
+## 의존성 (pip 중심)
 
-Windows 에는 brew 가 없으므로 **Python + pip** 로 통일한다. 유일한 전제는 Python 3 (python.org 또는 `winget install Python.Python.3`).
+Windows에는 brew가 없으므로 Python + pip로 통일한다. 전제는 Python 3(python.org 또는 `winget install Python.Python.3`).
 
 ```powershell
-pip install faster-whisper imageio-ffmpeg
+pip install faster-whisper "av<16" imageio-ffmpeg
 ```
 
-- `faster-whisper`: 받아쓰기. 모델은 첫 실행 시 공용 캐시(`%USERPROFILE%\.cache\huggingface`)에 자동 다운로드/재사용.
-- `imageio-ffmpeg`: ffmpeg 바이너리를 pip 로 제공(무음 감지용). 또는 `winget install Gyan.FFmpeg` / 시스템 ffmpeg 가 PATH 에 있으면 그걸 씀.
-- GPU(CUDA) 있으면 faster-whisper 가 자동 사용, 없으면 CPU(int8).
+- `faster-whisper`: 받아쓰기. 모델은 첫 실행 때 `%USERPROFILE%\.cache\huggingface`에 내려받는다.
+- `av<16`: faster-whisper 1.2.1이 PyAV 16 이상에서 `metadata_errors` TypeError로 실패한다(macOS 실측).
+- `imageio-ffmpeg`: `detect_silence.py`용 ffmpeg. MCP `detect_silence` 도구는 PATH의 ffmpeg가 필요하므로 `winget install Gyan.FFmpeg`도 권한다.
+- GPU(CUDA)가 있으면 faster-whisper가 자동으로 쓰고, 없으면 CPU(int8).
 
-## premiere-pro MCP + CSInterface.js 패치 (Windows 경로)
+## premiere-pro MCP 연결
 
-연결 구조는 macOS 와 동일하나 경로가 다르다.
+설치·등록·연결 확인은 이 레포의 `premiere-mcp-setup/` 스킬을 따른다. Windows 메모는 `premiere-mcp-setup/references/windows.md`에 있다.
 
-- **MCP 서버**: `npm install -g premiere-pro-mcp` (Node 필요). Claude Desktop 설정: `%APPDATA%\Claude\claude_desktop_config.json`.
-- **CEP 패널 폴더**: `%APPDATA%\Adobe\CEP\extensions\MCPBridgeCEP\`
-- **CSInterface.js 패치(핵심)**: macOS 와 **동일한 JS 수정**. (CEP 12 evalScript 버그는 Windows 11 + Premiere 2026 에서도 동일하게 보고됨.)
-  패키지의 `cep-plugin\CSInterface.js` 안 `evalScript` 를 콜백 전달 방식으로 교체:
-  ```js
-  CSInterface.prototype.evalScript = function (script, callback) {
-    if (typeof __adobe_cep__ !== "undefined") {
-      if (callback === null || callback === undefined)
-        callback = function (r) {};
-      __adobe_cep__.evalScript(script, callback);
-    } else if (callback) {
-      callback("EvalScript Error: Not in CEP environment");
-    }
-  };
-  ```
-- **PlayerDebugMode(서명없는 확장 허용)** — macOS `defaults` 대신 **레지스트리**:
-  ```
-  reg add "HKCU\Software\Adobe\CSXS.12" /v PlayerDebugMode /t REG_SZ /d 1 /f
-  (CSXS.9 ~ CSXS.12 까지 동일하게)
-  ```
-  설정 후 Premiere 완전 종료 후 재실행.
-- **manifest.xml** 에 `--enable-nodejs` `--mixed-context` 추가(파일 IO용) — macOS 와 동일.
+- `npm install -g premiere-pro-mcp` → `premiere-pro-mcp --install-cep`
+- 커넥터: `%APPDATA%\Adobe\CEP\extensions\MCPBridgeCEP`
+- npm 전역 명령이 `.cmd`라서 Claude Code에는 node 경로와 `dist\index.js` 경로로 등록한다.
+- **옛 CSInterface.js 패치·manifest 수정은 하지 않는다.** npm 1.1.1 전용이었고(`legacy/mcp-setup-1.1.1`), 1.31.0에서는 최신 커넥터를 옛 파일로 덮어써 망가뜨린다.
 
-전체 설치 키트(macOS): https://github.com/wonhp1/premiere-mcp-claude-fix (Windows 변형은 위 경로 참고).
+## 경로(workdir)
 
-## 경로(workdir) — 프로젝트 폴더 사용
+- 산출물(`cuts.json`, `cut_plan.json`, `cut_audio.wav`, `words.json`, `cut_audio.srt`)은 세션 프로젝트 폴더 아래 `premiere-auto-edit\`에 둔다.
+- MCP 도구에 넘기는 경로는 슬래시(`C:/Users/me/proj/premiere-auto-edit/cut_audio.wav`)로 쓴다.
+- 사용자 이름에 한글이 있으면 `%USERPROFILE%`·`%TEMP%`에도 한글이 들어간다. 작업 폴더와 프로젝트는 영문 경로에 둔다.
+- `expected_project_path`에는 `get_project_info`가 돌려준 `path`를 그대로 넣는다.
 
-모든 산출물(`cuts.json`, `cut_audio.wav`, `cut_audio.srt`)은 **세션 프로젝트 폴더** 아래
-`premiere-auto-edit\` 에 둔다. Python 스크립트는 `--workdir` 로 받는다.
-ExtendScript 에 넘기는 경로(`__CUTS_JSON__`, `__OUT_WAV__`)는 슬래시(/) 형태가 안전하다
-(예: `C:/Users/me/proj/premiere-auto-edit/cuts.json`).
+## 오디오 프리셋
 
-## QE 편집 한계 (macOS 와 동일)
+- Premiere 설치본: `C:\Program Files\Adobe\Adobe Premiere Pro <버전>\Settings\EncoderPresets\WAV_Mono_16bit_16kHz.epr` (macOS에서는 같은 이름의 파일이 설치본 안에 있었다. Windows 위치는 확인 필요)
+- `get_encoder_presets`는 Media Encoder 폴더만 훑는다. 16kHz 프리셋이 목록에 없어도 위 파일 경로를 직접 넘길 수 있다.
 
-- MCP 기본 도구(`razor_all_tracks`/`ripple_delete`/`add_text_overlay`)는 2026에서 미동작 → execute_extendscript 직접.
-- 자막은 `createCaptionTrack(cap, 0, Sequence.CAPTION_FORMAT_SUBTITLE)` 로 타임라인에 자동 생성(수동 드래그 불필요). for..in 으론 안 보이는 네이티브 메서드지만 동작.
+## 증상별
 
-## 증상별 (macOS 와 공통)
-
-| 증상                                  | 해결                                                                            |
-| ------------------------------------- | ------------------------------------------------------------------------------- |
-| execute_extendscript 가 null/타임아웃 | CSInterface.js 미패치 / Bridge 미시작 / Premiere 완전재시작 안 함               |
-| 컷이 "성공"인데 안 잘림               | MCP 기본 도구 버그 → 직접 ExtendScript                                          |
-| `python`/`pip` 없음                   | python.org 또는 winget 으로 Python 설치                                         |
-| faster-whisper 설치 실패              | Visual C++ 재배포 패키지 필요할 수 있음 / `pip install --upgrade pip` 후 재시도 |
+| 증상 | 해결 |
+|---|---|
+| `verify_premiere_connection`이 커넥터 응답 없음 | Premiere 실행·대화상자 확인, `get_bridge_telemetry`. 가드를 넣을 때만 그렇다면 경로 문자열 불일치 |
+| 도구가 30초 타임아웃 | 대화상자가 막음. 사용자에게 처리 부탁 → `get_last_operations` 확인 후 재시도 |
+| `HOST_RECOVERY_REQUIRED` | `inspect_operation_recovery` → 상태 재조회 → `acknowledge_operation_recovery` |
+| 컷 도구 거부 | 트랜지션, 잠긴 트랙, sync lock, 400개 넘는 이동(`allow_large_ripple`) |
+| 자막 도구가 `committed_unverified` | 정상(CEP에 자막 읽기 API 없음). 화면으로 확인 |
+| `python`/`pip` 없음 | python.org 또는 winget으로 Python 설치 |
+| faster-whisper 설치 실패 | Visual C++ 재배포 패키지가 필요할 수 있다 / `pip install --upgrade pip` 후 재시도 |
