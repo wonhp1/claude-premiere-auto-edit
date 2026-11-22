@@ -12,7 +12,7 @@ Claude(Claude Code/Desktop)가 `premiere-pro` MCP로 **Adobe Premiere Pro를 직
 | 폴더 | 대상 | 상태 | 구현 |
 |---|---|---|---|
 | [`mac/`](mac/) | macOS | ✅ **검증됨** (Premiere Pro 2027 27.0.0, premiere-pro-mcp 1.31.0) | bash·Python + MCP 기본 도구 |
-| [`windows/`](windows/) | Windows | ⚠️ **미검증** (macOS본과 같은 도구·순서로 맞춘 설계본) | Python + MCP 기본 도구 |
+| [`windows/`](windows/) | Windows | ✅ **검증됨** (Windows 11, Premiere Pro 2027 27.0.0 한국어 UI, premiere-pro-mcp 1.31.0) | Python + MCP 기본 도구 |
 
 검증 기록: [`../tests/README.md`](../tests/README.md)
 
@@ -34,14 +34,20 @@ Claude(Claude Code/Desktop)가 `premiere-pro` MCP로 **Adobe Premiere Pro를 직
 cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
 ```
 
+```powershell
+# 예 (Windows PowerShell, 레포 최상위에서)
+Copy-Item -Recurse skill\windows "$env:USERPROFILE\.claude\skills\premiere-auto-edit"
+```
+
 그다음 Claude에게 "이 영상 무음 -30dB로 잘라줘" / "자막 달아줘"라고 하면 스킬이 발동합니다.
 
 ## 의존성 (Python 3 필요)
 
 - 컷: `ffmpeg` (macOS `brew install ffmpeg` / Windows `winget install Gyan.FFmpeg` 또는 `pip install imageio-ffmpeg`)
-- 자막: `pip install faster-whisper "av<16"`
+- 자막: `pip install faster-whisper "av<16"` (Windows: `python -m pip install faster-whisper "av<16" imageio-ffmpeg`)
   - faster-whisper 1.2.1은 PyAV 16 이상에서 실패해서 `av<16`을 같이 설치합니다.
   - 모델은 처음 쓸 때 내려받습니다(small 약 0.5GB, medium 약 1.5GB, large-v3 약 3GB). Mac CPU는 medium을 권합니다.
+  - Windows판 `transcribe_words.py`는 CUDA로 받아쓰다 실패하면(CUDA 런타임 없는 NVIDIA PC 등) CPU로 자동 전환합니다.
 
 ## 동작 원리
 

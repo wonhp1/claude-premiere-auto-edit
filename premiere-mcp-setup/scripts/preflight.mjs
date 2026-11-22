@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // premiere-pro-mcp 설치·연결 전후 상태를 읽기 전용으로 점검한다. 아무것도 바꾸지 않는다.
 // 사용법: node preflight.mjs [--json]
-// macOS는 실제 환경에서 검증됨. Windows 분기는 경로·명령을 추정해 작성했으므로 결과를 그대로 믿지 말고 확인한다.
+// macOS와 Windows 11(Premiere 2027, 2026-11-22)에서 검증됨.
 
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, statSync, readFileSync } from "node:fs";
@@ -50,6 +50,9 @@ if (cep.installed) {
     cep.bundleVersion = xml.match(/ExtensionBundleVersion="([^"]+)"/)?.[1] ?? null;
     cep.hostRange = xml.match(/<Host Name="PPRO" Version="([^"]+)"/)?.[1] ?? null;
   }
+  // 서명된 패키지(MCPBridgeCEP.zxp)를 풀어 설치하면 META-INF/signatures.xml이 있다.
+  // 서명된 커넥터는 PlayerDebugMode 없이도 로드된다(2026-11-22 Windows 11 + Premiere 2027 실측).
+  cep.signed = existsSync(path.join(cepDir, "META-INF/signatures.xml"));
 }
 r.checks.cepConnector = cep;
 
@@ -84,7 +87,11 @@ if (isMac) {
   const base = "C:\\Program Files\\Adobe";
   if (existsSync(base)) {
     for (const d of readdirSync(base).filter((n) => n.startsWith("Adobe Premiere Pro"))) {
-      premiere.push({ dir: path.join(base, d) });
+      const exe = path.join(base, d, "Adobe Premiere Pro.exe");
+      const ver = existsSync(exe)
+        ? sh(`powershell -NoProfile -Command "(Get-Item -LiteralPath '${exe}').VersionInfo.ProductVersion"`)
+        : null;
+      premiere.push({ dir: path.join(base, d), version: ver });
     }
   }
 }
@@ -103,8 +110,10 @@ if (isMac) {
     if (m) running = { pid: Number(m[1]), startedAt: new Date(m[2]).toISOString(), command: m[3] };
   }
 } else if (isWin) {
+  // Windows PowerShell 5.1의 ConvertTo-Json은 DateTime을 "/Date(ms)/"로 내보내 new Date()가 못 읽는다
+  // (그래서 예전에는 Premiere가 켜져 있어도 항상 "실행 중 아님"으로 나왔다). 시작 시각은 ISO 문자열로 뽑는다.
   const out = sh(
-    `powershell -NoProfile -Command "Get-Process | Where-Object { $_.ProcessName -like 'Adobe Premiere Pro*' } | Select-Object -First 1 Id,StartTime | ConvertTo-Json"`,
+    `powershell -NoProfile -Command "Get-Process | Where-Object { $_.ProcessName -like 'Adobe Premiere Pro*' } | Select-Object -First 1 Id,@{n='StartTime';e={$_.StartTime.ToString('o')}} | ConvertTo-Json"`,
   );
   try {
     const p = JSON.parse(out ?? "null");
@@ -143,9 +152,12 @@ if (process.argv.includes("--json")) {
   console.log(`OS: ${r.platform}`);
   console.log(`Node: ${c.node.version} ${c.node.ok ? "(OK)" : "(20.19 이상 필요)"}`);
   console.log(`premiere-pro-mcp: 설치 ${c.package.installed ?? "없음"} / 최신 ${c.package.latest ?? "?"} / repo ${c.package.repository ?? "?"}`);
-  console.log(`CEP 커넥터: ${c.cepConnector.installed ? `설치됨 ${c.cepConnector.bundleVersion ?? ""} (호스트 ${c.cepConnector.hostRange ?? "?"}+, ${c.cepConnector.installedAt})` : "없음"}`);
-  console.log(`PlayerDebugMode: ${Object.entries(c.playerDebugMode).map(([k, v]) => `${k}=${v ?? "-"}`).join(" ")}`);
-  for (const p of c.premiereInstalls) console.log(`Premiere: ${p.app ?? p.dir} ${p.version ?? ""} ${p.bundleId ?? ""} CEP ${p.cepVersion ?? "?"}`);
+  console.log(`CEP 커넥터: ${c.cepConnector.installed ? `설치됨 ${c.cepConnector.bundleVersion ?? ""}${c.cepConnector.signed ? " 서명됨" : " 서명 없음"} (호스트 ${c.cepConnector.hostRange ?? "?"}+, ${c.cepConnector.installedAt})` : "없음"}`);
+  console.log(
+    `PlayerDebugMode: ${Object.entries(c.playerDebugMode).map(([k, v]) => `${k}=${v ?? "-"}`).join(" ")}${c.cepConnector.signed ? " (서명된 커넥터라 없어도 됨)" : ""}`,
+  );
+  for (const p of c.premiereInstalls)
+    console.log(`Premiere: ${[p.app ?? p.dir, p.version, p.bundleId, p.cepVersion && `CEP ${p.cepVersion}`].filter(Boolean).join(" ")}`);
   if (!c.premiereInstalls.length) console.log("Premiere: 설치본을 찾지 못함");
   console.log(`Premiere 실행 중: ${c.premiereRunning ? `예 (시작 ${c.premiereRunning.startedAt})` : "아니오"}`);
   console.log(`커넥터 반영에 재시작 필요: ${yes(c.restartNeeded)}`);

@@ -81,7 +81,7 @@ node <이 스킬 폴더>/scripts/preflight.mjs
 결과를 보고 할 일을 정한다.
 - **Node**: 20.19 미만이면 먼저 올려야 한다.
 - **설치 상태**: premiere-pro-mcp가 설치돼 있지 않거나 최신이 아니면 2단계로 간다.
-- **CEP 커넥터와 PlayerDebugMode**: 커넥터가 없거나 PlayerDebugMode가 1이 아니면 2단계의 `--install-cep`로 해결한다.
+- **CEP 커넥터와 PlayerDebugMode**: 커넥터가 없거나, 서명 없는 커넥터인데 PlayerDebugMode가 1이 아니면 2단계의 `--install-cep`로 해결한다. preflight에 "서명됨"으로 나오는 커넥터는 PlayerDebugMode가 없어도 로드된다(Windows 11 실측).
 - **재시작 필요**: 이 값이 예면, 커넥터를 설치하기 전부터 Premiere가 켜져 있었다는 뜻이다. 4단계에서 재시작해야 한다.
 - **비ASCII 경로**: 현재 폴더에 한글 등 비ASCII 문자가 있으면 3단계에서 등록할 폴더를 정할 때 다룬다.
 - **Claude Code 등록**: 이미 Connected면 3단계는 건너뛴다.
@@ -99,6 +99,7 @@ npm view premiere-pro-mcp homepage repository.url
 - **패키지가 맞는지 확인한다.** 홈페이지는 premiere-pro-mcp.com, 레포는 leancoderkavy/premiere-pro-mcp여야 한다. 비슷한 이름의 `adobe-premiere-pro-mcp`도 같은 실행 파일 이름을 쓰기 때문에 헷갈리기 쉽다.
 - **커넥터를 설치한다.**
   - 실행: `premiere-pro-mcp --install-cep`
+    - Windows에서는 `premiere-pro-mcp.cmd --install-cep`로 쓴다. PowerShell 기본 실행 정책에서는 npm이 만든 `premiere-pro-mcp.ps1`이 막혀 아무것도 설치되지 않는다.
   - 이 명령은 macOS에서는 `~/Library/Application Support/Adobe/CEP/extensions/MCPBridgeCEP`, Windows에서는 `%APPDATA%\Adobe\CEP\extensions\MCPBridgeCEP`에 커넥터를 복사한다. 그리고 CSXS 8~14의 PlayerDebugMode를 켠다.
   - PlayerDebugMode는 서명 없는 CEP 확장을 허용하는 Adobe 설정이다. 사용자에게 무엇이 바뀌는지 한 줄로 알린다.
 - **설치를 확인한다**: `premiere-pro-mcp --diagnose-cep`, `premiere-pro-mcp --doctor`
@@ -150,7 +151,7 @@ node <이 스킬 폴더>/scripts/ensure-premiere.mjs [--project=<.prproj 절대 
 ```
 
 - 꺼져 있으면 가장 최신 설치본을 켜고, 커넥터 신호가 올 때까지 기다린 뒤 `verify_premiere_connection` 결과를 보여 준다. 켜는 것은 종료와 달리 사용자 작업을 잃을 일이 없으니 따로 묻지 않고 켠다.
-  - 2026-11-22 이 Mac(Premiere 2027)에서 꺼진 상태부터 프로젝트 열기, `overall: ready`까지 약 11초 걸렸다.
+  - 2026-11-22 이 Mac(Premiere 2027)에서 꺼진 상태부터 프로젝트 열기, `overall: ready`까지 약 11초 걸렸다. Windows 11(Premiere 2027)에서는 16초였다.
 - 설치본이 여러 개면 최신을 켜고 출력에 알린다. 다른 버전을 원하면 `--app=<.app 또는 .exe 경로>`를 준다.
 - 출력의 "참고" 줄을 따른다.
   - **열린 프로젝트 없음(홈 화면)**: 어떤 프로젝트를 쓸지 사용자에게 묻고 `--project`로 다시 실행한다. 새 프로젝트가 필요하면 4-4를 따른다.
