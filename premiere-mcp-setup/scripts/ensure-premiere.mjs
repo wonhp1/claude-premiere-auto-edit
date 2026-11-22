@@ -6,9 +6,9 @@
 //   node ensure-premiere.mjs [--project=<.prproj 절대 경로>] [--app=<.app 또는 .exe 경로>] [--wait=180] [--json]
 //
 // 종료 코드: 0 = 커넥터 연결됨(프로젝트·시퀀스까지 ready가 아니어도 0, 출력의 overall로 구분), 1 = 연결 못 함
-// macOS에서 검증됨. Windows 분기(설치본 찾기·실행)는 추정해 작성했으므로 결과를 확인하며 쓴다.
+// macOS(Premiere 2027)와 Windows 11(Premiere 2027, 2026-11-22)에서 검증됨.
 
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { connect } from "./lib-mcp.mjs";
@@ -72,7 +72,20 @@ function isRunning() {
 
 function launch(appPath) {
   if (isMac) return sh(`open "${appPath}"`) !== null;
-  if (isWin) return sh(`start "" "${appPath}"`) !== null;
+  if (isWin) {
+    // `start`를 execSync(stdout 파이프)로 부르면 Premiere가 그 파이프 핸들을 물려받아
+    // Premiere가 꺼질 때까지 execSync가 돌아오지 않는다(2026-11-22 Windows 11 실측: 무한 대기).
+    // 그래서 파이프 없이 분리된 프로세스로 띄우고 바로 놓아 준다.
+    if (!existsSync(appPath)) return false;
+    try {
+      const child = spawn(appPath, [], { detached: true, stdio: "ignore", windowsHide: false });
+      child.on("error", () => {});
+      child.unref();
+      return true;
+    } catch {
+      return false;
+    }
+  }
   return false;
 }
 

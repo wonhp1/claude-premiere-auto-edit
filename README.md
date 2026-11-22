@@ -9,8 +9,8 @@ Claude(Claude Code/Desktop)가 `premiere-pro` MCP로 **Adobe Premiere Pro를 직
 
 | 항목 | 값 |
 |---|---|
-| OS | macOS (Windows는 미검증) |
-| Premiere Pro | 2027 (27.0.0, CEP 12), 영어 UI |
+| OS | macOS, Windows 11 |
+| Premiere Pro | 2027 (27.0.0, CEP 12) — macOS 영어 UI, Windows 한국어 UI |
 | MCP 서버 | [leancoderkavy/premiere-pro-mcp](https://github.com/leancoderkavy/premiere-pro-mcp) 1.31.0 (npm `premiere-pro-mcp`), CEP 브리지 |
 | 검증 날짜 | 2026-11-22 |
 
@@ -26,6 +26,11 @@ Claude(Claude Code/Desktop)가 `premiere-pro` MCP로 **Adobe Premiere Pro를 직
 cp -R premiere-mcp-setup "$HOME/.claude/skills/premiere-mcp-setup"
 ```
 
+```powershell
+# Windows (PowerShell)
+Copy-Item -Recurse premiere-mcp-setup "$env:USERPROFILE\.claude\skills\premiere-mcp-setup"
+```
+
 직접 하려면 원본 README의 순서를 따릅니다.
 
 ```bash
@@ -34,7 +39,14 @@ premiere-pro-mcp --install-cep
 claude mcp add --scope local premiere-pro -- "$(command -v premiere-pro-mcp)"
 ```
 
-설치 후 Premiere를 다시 켜고 프로젝트를 열면 연결됩니다(커넥터가 백그라운드로 자동 실행). 자세한 내용: [`premiere-mcp-setup/SKILL.md`](premiere-mcp-setup/SKILL.md)
+```powershell
+# Windows (PowerShell) — `.cmd`를 붙여야 기본 실행 정책에 막히지 않습니다
+npm install -g premiere-pro-mcp
+premiere-pro-mcp.cmd --install-cep
+# Claude Code 등록은 node.exe와 dist\index.js 경로로: premiere-mcp-setup/references/windows.md
+```
+
+설치 후 Premiere를 다시 켜고 프로젝트를 열면 연결됩니다(커넥터가 백그라운드로 자동 실행). 자세한 내용: [`premiere-mcp-setup/SKILL.md`](premiere-mcp-setup/SKILL.md), Windows는 [`premiere-mcp-setup/references/windows.md`](premiere-mcp-setup/references/windows.md)
 
 > ⚠️ 예전 `mcp-setup/`(CSInterface.js 패치)은 **npm 1.1.1 전용**이라 [`legacy/mcp-setup-1.1.1/`](legacy/mcp-setup-1.1.1/)로 옮겼습니다. 1.31.0 이상에서 쓰면 최신 커넥터를 옛 파일로 덮어써 망가뜨립니다. 쓰지 마세요.
 
@@ -43,11 +55,14 @@ claude mcp add --scope local premiere-pro -- "$(command -v premiere-pro-mcp)"
 ```bash
 # macOS (검증됨)
 cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
-
-# Windows (미검증) — %USERPROFILE%\.claude\skills\premiere-auto-edit\ 에 skill\windows\ 내용 복사
 ```
 
-의존성: `ffmpeg`, Python 3, `pip install faster-whisper "av<16"`
+```powershell
+# Windows (검증됨, PowerShell)
+Copy-Item -Recurse skill\windows "$env:USERPROFILE\.claude\skills\premiere-auto-edit"
+```
+
+의존성: `ffmpeg`, Python 3, `pip install faster-whisper "av<16"` (Windows: `winget install Gyan.FFmpeg`, `winget install Python.Python.3.12` 뒤 `python -m pip install faster-whisper "av<16" imageio-ffmpeg`)
 
 그다음 Claude에게 **"이 영상 무음 -30dB로 잘라줘"**, **"자막 달아줘"**라고 하면 스킬이 발동합니다. 자세한 내용: [`skill/README.md`](skill/README.md)
 
@@ -69,7 +84,7 @@ cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
 - 건너뜀: After Effects 필요, UXP 필요, 외부 업로드, CC Libraries, unsafe-script
 - 언어와 상관없이 남은 실패: 설계상 미지원 10개, Premiere 2027 API 문제 7개 등. 목록은 [`premiere-mcp-setup/references/known-issues.md`](premiere-mcp-setup/references/known-issues.md)
 
-### 이 레포 편집 스킬 (실제 영상)
+### 이 레포 편집 스킬 (실제 영상, macOS)
 
 테스트 영상(30.4초, 긴 무음 4개 + 남겨야 할 1초 쉼)으로 검증했습니다. 상세: [`tests/README.md`](tests/README.md)
 
@@ -80,6 +95,19 @@ cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
 | 오디오 export (`export_sequence`) | 16kHz 모노 WAV(오디오만), 길이 일치 |
 | 자막 (`create_caption_track`) | 자막 트랙 생성, 큐 8개를 화면에서 확인 (도구 자체는 확인 API가 없어 `committed_unverified`) |
 
+### Windows 11 (한국어 UI)
+
+같은 흐름을 Windows 11 + Premiere Pro 2027(한국어 UI)에서 돌렸습니다. 상세: [`tests/README.md`](tests/README.md#windows-11-결과)
+
+| 항목 | 결과 |
+|---|---|
+| Premiere 켜기·연결 (`ensure-premiere.mjs`) | 꺼진 상태 → 프로젝트 열기 → `overall: ready` 16초 |
+| 무음 컷 (29.97fps, `ripple_remove_timeline_ranges`) | 감지 4 / 잘림 4, 34.97초 → 22.22초, 모든 컷 경계가 기대값과 0프레임 차이 |
+| 오디오 export | 16kHz 모노 WAV, 길이 일치 |
+| 자막 | 자막 10개, 자막 트랙을 화면에서 확인 |
+
+Windows에서만 막히던 것 7가지(PowerShell 실행 정책, Premiere 실행 후 스크립트 무한 대기, 실행 중 감지 실패, CUDA 런타임 없는 GPU에서 받아쓰기 실패, 한글 출력 깨짐, `>` 리다이렉트 인코딩, cp949로 JSON 읽기)를 고쳤습니다. 목록: [`tests/README.md`](tests/README.md#windows에서-고친-것)
+
 ## 구성
 
 ```
@@ -87,7 +115,7 @@ cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
 ├─ premiere-mcp-setup/   ① MCP 설치·연결 스킬 (원본 추적 check-upstream.mjs, Premiere 켜기 ensure-premiere.mjs, 점검·호출 스크립트, 알려진 문제)
 ├─ skill/                ② 편집 스킬
 │  ├─ mac/               ✅ 검증됨
-│  └─ windows/           ⚠️ 미검증
+│  └─ windows/           ✅ 검증됨 (Windows 11)
 ├─ tests/                실제 영상 검증 스크립트와 결과
 └─ legacy/               npm 1.1.1 시절 파일 (쓰지 말 것)
 ```

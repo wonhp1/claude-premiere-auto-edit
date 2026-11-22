@@ -5,8 +5,8 @@
   "homepage": "https://premiere-pro-mcp.com/",
   "verifiedVersion": "1.31.0",
   "verifiedAt": "2026-11-22",
-  "verifiedEnvironment": "NOT VERIFIED on Windows. macOS 검증본(skill/mac)과 같은 도구·순서를 쓰도록 맞춘 설계본",
-  "verifiedBy": "Windows 실측 없음. 도구 호출 순서는 macOS(Premiere Pro 2027, 1.31.0)에서 검증한 것과 같다",
+  "verifiedEnvironment": "Windows 11, Adobe Premiere Pro 2027 (27.0.0, Korean UI), Node 26, Python 3.12, faster-whisper 1.2.1 (PyAV 15.1), signed CEP connector",
+  "verifiedBy": "실제 Premiere에서 무음 컷(29.97fps, ripple_remove_timeline_ranges, 34.968초 → 22.222초), export_sequence(16kHz 모노 WAV), create_caption_track(자막 10개, 화면 확인). tests/README.md Windows 절",
   "requiredTools": [
     "verify_premiere_connection",
     "get_project_info",

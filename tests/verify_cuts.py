@@ -9,8 +9,14 @@
 import json, sys
 from fractions import Fraction as F
 
-cuts = json.load(open(sys.argv[1]))
-rb = json.load(open(sys.argv[2]))
+# Windows: 기본 인코딩(cp949)으로 열면 readback의 한글 트랙 이름("비디오 1")에서 UnicodeDecodeError가 난다.
+# 파일은 UTF-8로 읽고(PowerShell이 붙이는 BOM도 허용), 출력도 UTF-8로 고정한다.
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
+
+cuts = json.load(open(sys.argv[1], encoding="utf-8-sig"))
+rb = json.load(open(sys.argv[2], encoding="utf-8-sig"))
 fps = F(int(sys.argv[3]), int(sys.argv[4]))
 src_frames = None
 if "--source-frames" in sys.argv:

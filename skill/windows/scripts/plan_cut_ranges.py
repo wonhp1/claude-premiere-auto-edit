@@ -4,7 +4,7 @@
 plan_cut_ranges.py — 무음 컷 목록(원본 초)을 premiere-pro MCP 도구 입력(타임라인 초)으로 바꾼다. (크로스플랫폼)
 
 사용법:
-  python plan_cut_ranges.py <cuts.json> --frame-ticks <N> [--clip-start 0] [--clip-in 0] [--clip-end <초>]
+  python plan_cut_ranges.py <cuts.json> --frame-ticks <N> [--clip-start 0] [--clip-in 0] [--clip-end <초>] [--out cut_plan.json]
   python plan_cut_ranges.py <cuts.json> --fps 30000/1001 ...
 
   cuts.json      detect_silence 가 만든 [[start,end],...] (원본 파일 기준 초)
@@ -14,8 +14,10 @@ plan_cut_ranges.py — 무음 컷 목록(원본 초)을 premiere-pro MCP 도구 
   --clip-in      V1 클립의 원본 시작점(초). clips[0].inPoint
   --clip-end     V1 클립의 타임라인 끝(초). 이 밖의 컷은 버리고 걸치는 컷은 자른다.
   --chunk        ripple_remove_timeline_ranges 한 번에 넣을 구간 수(도구 상한 50)
+  --out          결과 JSON을 이 파일에 UTF-8(BOM 없음)로 저장한다. Windows PowerShell 5.1의 `>` 리다이렉트는
+                 UTF-16/BOM 파일을 만들어 json 파서가 읽지 못하므로 Windows에서는 이 옵션을 쓴다.
 
-출력(stdout, JSON):
+출력(stdout 또는 --out 파일, JSON):
   ranges        전체 컷 구간 [{start,end}] — 타임라인 초, 프레임 경계로 반올림
   chunks        ripple_remove_timeline_ranges 에 넣을 묶음. **배열 순서대로(뒤쪽 묶음부터)** 적용한다.
                 뒤쪽을 먼저 지워야 앞쪽 구간의 타임라인 시간이 그대로 유지된다.
@@ -31,6 +33,11 @@ plan_cut_ranges.py — 무음 컷 목록(원본 초)을 premiere-pro MCP 도구 
 import argparse, json, sys
 from fractions import Fraction
 
+# Windows: 출력을 파이프로 읽을 때(Claude Code 셸 등) 한글이 cp949로 나가 깨지지 않게 UTF-8로 고정한다.
+for _s in (sys.stdout, sys.stderr):
+    if hasattr(_s, "reconfigure"):
+        _s.reconfigure(encoding="utf-8", errors="replace")
+
 TICKS_PER_SECOND = 254016000000
 
 
@@ -43,6 +50,7 @@ def main():
     ap.add_argument("--clip-in", default="0")
     ap.add_argument("--clip-end")
     ap.add_argument("--chunk", type=int, default=50)
+    ap.add_argument("--out")
     a = ap.parse_args()
 
     if a.frame_ticks:
@@ -91,7 +99,13 @@ def main():
         "removed_frames": removed_frames,
         "removed_seconds": sec(removed_frames),
     }
-    print(json.dumps(out, ensure_ascii=False, indent=1))
+    text = json.dumps(out, ensure_ascii=False, indent=1)
+    if a.out:
+        with open(a.out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text + "\n")
+        print(f"계획 저장: {a.out}", file=sys.stderr)
+    else:
+        print(text)
     print(
         f"컷 {len(cuts)}개 → 타임라인 구간 {len(ranges)}개, 묶음 {len(chunks)}개, 지울 길이 {out['removed_seconds']:.3f}초 ({removed_frames}프레임)",
         file=sys.stderr,
