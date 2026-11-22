@@ -42,6 +42,15 @@ fi
 ok "패키지: $PKG"
 ok "CEP 플러그인: $CEP_PLUGIN"
 
+# ── 0-1. 버전 확인: 이 패치는 npm 1.1.1 전용 ──────────────────────────────────
+# 1.31.0 이상은 evalScript 버그가 이미 고쳐져 있고, 이 패치를 덮어쓰면 최신 커넥터가 망가진다.
+PKG_VERSION="$(node -p "require('$PKG/package.json').version" 2>/dev/null || echo unknown)"
+if [ "$PKG_VERSION" != "1.1.1" ] && [ "${FORCE_LEGACY_PATCH:-}" != "1" ]; then
+  err "설치된 premiere-pro-mcp 버전이 $PKG_VERSION 입니다. 이 패치는 1.1.1 전용이라 중단합니다."
+  echo "    최신 버전은 레포 최상위의 premiere-mcp-setup/ 스킬로 설치·연결하세요."
+  exit 1
+fi
+
 # ── 1. CSInterface.js 패치 (핵심) ────────────────────────────────────────────
 say "CSInterface.js 패치 (CEP 12 비동기 콜백 수정)"
 TARGET_CSI="$CEP_PLUGIN/CSInterface.js"

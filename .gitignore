@@ -5,3 +5,5 @@ premiere-auto-edit/
 cuts.json
 cut_audio.wav
 cut_audio.srt
+words.json
+cut_plan.json

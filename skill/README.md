@@ -2,58 +2,64 @@
 
 Claude(Claude Code/Desktop)가 `premiere-pro` MCP로 **Adobe Premiere Pro를 직접 조작**해서:
 
-- 🔇 영상의 **무음 구간 자동 컷편집** (dB·최소 길이 지정 가능)
-- 💬 **자막 자동 생성** (시퀀스 오디오 → Whisper 받아쓰기 → SRT → import)
+- 🔇 영상의 **무음 구간 자동 컷편집** (dB·최소 길이 지정 가능, 프레임 단위로 정확)
+- 💬 **자막 자동 생성** (시퀀스 오디오 → Whisper 단어 타임스탬프 → 쉼 기반 1줄 SRT → 자막 트랙)
 
 을 수행하는 Claude **스킬**입니다. 편집이 실제 프리미어 타임라인에 반영됩니다.
 
 ## 두 가지 버전
 
-| 폴더                   | 대상    | 상태                                              | 구현                  |
-| ---------------------- | ------- | ------------------------------------------------- | --------------------- |
-| [`mac/`](mac/)         | macOS   | ✅ **검증됨** (Premiere 2025/2026, Apple Silicon) | bash + ExtendScript   |
-| [`windows/`](windows/) | Windows | ⚠️ **미검증** (macOS본 기반 크로스플랫폼 설계)    | Python + ExtendScript |
+| 폴더 | 대상 | 상태 | 구현 |
+|---|---|---|---|
+| [`mac/`](mac/) | macOS | ✅ **검증됨** (Premiere Pro 2027 27.0.0, premiere-pro-mcp 1.31.0) | bash·Python + MCP 기본 도구 |
+| [`windows/`](windows/) | Windows | ⚠️ **미검증** (macOS본과 같은 도구·순서로 맞춘 설계본) | Python + MCP 기본 도구 |
 
-> Windows판은 실제 Windows에서 아직 검증되지 않았습니다. 동작 보고/PR 환영합니다.
+검증 기록: [`../tests/README.md`](../tests/README.md)
+
+## 원본 추적
+
+- 원본 MCP 서버: https://github.com/leancoderkavy/premiere-pro-mcp
+- 각 폴더의 `upstream.json`에 검증한 버전(1.31.0)과 이 스킬이 쓰는 도구(`requiredTools`)를 적어 두었습니다.
+- 스킬은 시작할 때 `premiere-mcp-setup/scripts/check-upstream.mjs --baseline <스킬>/upstream.json`으로 원본의 최신 버전과 CHANGELOG를 확인하고, 도구·권한이 바뀌었으면 원본을 따릅니다.
 
 ## 설치
 
-자기 OS 폴더(`mac/` 또는 `windows/`)를 Claude 스킬 폴더에 복사하세요:
-
-- macOS: `~/.claude/skills/premiere-auto-edit/`
-- Windows: `%USERPROFILE%\.claude\skills\premiere-auto-edit\`
+1. 먼저 레포 최상위의 [`premiere-mcp-setup/`](../premiere-mcp-setup/) 스킬로 MCP를 설치·연결합니다.
+2. 자기 OS 폴더를 Claude 스킬 폴더에 복사합니다.
+   - macOS: `~/.claude/skills/premiere-auto-edit/`
+   - Windows: `%USERPROFILE%\.claude\skills\premiere-auto-edit\`
 
 ```bash
-# 예 (macOS)
-cp -R mac "$HOME/.claude/skills/premiere-auto-edit"
+# 예 (macOS, 레포 최상위에서)
+cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
 ```
 
-그다음 Claude에게 "이 영상 무음 -30dB로 잘라줘" / "자막 달아줘" 라고 하면 스킬이 자동 발동합니다.
+그다음 Claude에게 "이 영상 무음 -30dB로 잘라줘" / "자막 달아줘"라고 하면 스킬이 발동합니다.
 
-## 사전 조건 (공통)
+## 의존성 (Python 3 필요)
 
-1. **premiere-pro MCP 연결 + CSInterface.js 패치** — 가장 중요. 설치 키트는 이 레포의 [`../mcp-setup/`](../mcp-setup/) 참고.
-   (Premiere 2025/2026의 CEP 12 evalScript 버그를 고쳐야 모든 게 동작함. Windows 경로는 windows/references 참고.)
-2. **의존성** (Python3 필요)
-   - 자막: `pip install faster-whisper` (모델 자동 다운로드; large-v3는 Mac CPU 느림→`--model medium`, Windows GPU 빠름)
-   - 컷: `ffmpeg` (macOS `brew install ffmpeg` / Windows `pip install imageio-ffmpeg`)
+- 컷: `ffmpeg` (macOS `brew install ffmpeg` / Windows `winget install Gyan.FFmpeg` 또는 `pip install imageio-ffmpeg`)
+- 자막: `pip install faster-whisper "av<16"`
+  - faster-whisper 1.2.1은 PyAV 16 이상에서 실패해서 `av<16`을 같이 설치합니다.
+  - 모델은 처음 쓸 때 내려받습니다(small 약 0.5GB, medium 약 1.5GB, large-v3 약 3GB). Mac CPU는 medium을 권합니다.
 
 ## 동작 원리
 
 ```
-ffmpeg/Whisper = 귀(무음·음성 인식)   →   Claude = 두뇌+손(판단·명령)   →   Premiere = 작업대
+ffmpeg/Whisper = 귀(무음·음성 인식)   →   Claude = 두뇌(판단)   →   premiere-pro MCP 도구 = 손   →   Premiere = 작업대
 ```
 
-Claude는 영상을 직접 듣지 못하므로, ffmpeg(무음 타임스탬프)·Whisper(받아쓰기)로 정보를 뽑은 뒤
-`execute_extendscript`로 프리미어를 직접 편집합니다. (MCP 기본 편집 도구는 2026에서 버그라 우회.)
+| 단계 | 로컬 스크립트 | MCP 도구 |
+|---|---|---|
+| 연결 확인 | — | `verify_premiere_connection`, `get_project_info`, `get_active_sequence` |
+| 무음 감지 | `detect_silence.sh` / `detect_silence.py` (ffmpeg) | (`detect_silence`로 원본 경로 확인) |
+| 컷 계획 | `plan_cut_ranges.py` (프레임 경계, 50개 묶음) | — |
+| 컷 | — | `ripple_remove_timeline_ranges` (dry run → 적용). 대체: `razor_all_tracks` + `ripple_delete` |
+| 오디오 export | — | `export_sequence` (`WAV_Mono_16bit_16kHz.epr`) |
+| 받아쓰기·분할 | `transcribe_words.py`, `segment_subtitles.py` | — |
+| 자막 트랙 | — | `import_media` + `create_caption_track` |
 
-## 핵심 기술 메모
-
-- **프레임 정확 컷**(비표준 fps): `setPlayerPosition(frameTicks)` → `CTI.timecode` → `razor(tc)`, ripple는 `qeItem.remove(true,true)`.
-- **오디오 export**: `exportAsMediaDirect(out, WAV_Mono_16bit_16kHz.epr, 0)` — 현재 타임라인 그대로(사람이 다듬어도 정확).
-- **자막 한계**: 캡션 트랙은 스크립트로 못 올림(2026 API 미노출) → SRT import 후 수동 드래그 1회.
-
-자세한 내용은 각 버전의 `references/` 참고.
+`execute_extendscript`는 쓰지 않습니다. 1.31.0에서 이 도구는 unsafe-script 권한이 있어야 등록되고, 이 스킬은 그 권한을 켜지 않습니다. 예전 ExtendScript 코드는 [`../legacy/extendscript-assets/`](../legacy/extendscript-assets/)에 기록으로만 남겨 두었습니다.
 
 ## 라이선스
 
