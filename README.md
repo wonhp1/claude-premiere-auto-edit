@@ -84,7 +84,7 @@ cp -R skill/mac "$HOME/.claude/skills/premiere-auto-edit"
 
 ```
 .
-├─ premiere-mcp-setup/   ① MCP 설치·연결 스킬 (원본 추적 check-upstream.mjs, 점검·호출 스크립트, 알려진 문제)
+├─ premiere-mcp-setup/   ① MCP 설치·연결 스킬 (원본 추적 check-upstream.mjs, Premiere 켜기 ensure-premiere.mjs, 점검·호출 스크립트, 알려진 문제)
 ├─ skill/                ② 편집 스킬
 │  ├─ mac/               ✅ 검증됨
 │  └─ windows/           ⚠️ 미검증

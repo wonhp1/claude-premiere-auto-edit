@@ -6,7 +6,7 @@ description: >-
   "-30dB 이하 잘라줘", "자막 만들어줘", "받아쓰기", "silence cut", "subtitle" 같은 말을 하거나 프리미어 타임라인의
   무음·여백을 줄이고 싶어 할 때 사용한다. Windows 환경(Python+pip, %APPDATA% 경로)에 맞춰져 있다. 컷은
   ripple_remove_timeline_ranges(dry run 후 적용), 오디오는 export_sequence, 자막은 create_caption_track을 쓴다.
-  execute_extendscript와 unsafe-script 권한은 쓰지 않는다. 시작할 때 원본 레포의 최신 버전과 바뀐 도구를 먼저 확인한다.
+  execute_extendscript와 unsafe-script 권한은 쓰지 않는다. 시작할 때 원본 레포의 최신 버전과 바뀐 도구를 먼저 확인하고, Premiere가 꺼져 있으면 켜서 연결부터 맞춘다.
   모든 산출물은 세션 프로젝트 폴더의 premiere-auto-edit\ 하위에 둔다.
 ---
 
@@ -46,6 +46,7 @@ node "$env:USERPROFILE\.claude\skills\premiere-mcp-setup\scripts\check-upstream.
 ## 무음 컷
 
 1. **연결과 대상 확인**
+   - Premiere가 꺼져 있으면 켜는 것부터 한다: `node "%USERPROFILE%\.claude\skills\premiere-mcp-setup\scripts\ensure-premiere.mjs" [--project=<.prproj 경로>]`. 꺼져 있으면 켜고 커넥터를 기다린 뒤 연결 결과를 보여 준다. Windows 분기(설치본 찾기·실행)는 미검증이라, 실패하면 Premiere를 직접 켜 달라고 하거나 computer use `open_application`으로 켠다. 출력의 "참고"(프로젝트 없음·시퀀스 없음·커넥터 신호 없음)를 따른다.
    - `verify_premiere_connection` → `overall: ready`
    - `get_project_info` → `path`를 이후 모든 호출의 `expected_project_path`로 그대로 쓴다.
    - `get_active_sequence` → V1 클립의 `name`·`start`·`inPoint`·`end`, `syncCheck.frameTicks`, 시퀀스 `end`, `transitionCount`
@@ -60,6 +61,8 @@ node "$env:USERPROFILE\.claude\skills\premiere-mcp-setup\scripts\check-upstream.
 6. **확인** — `get_active_sequence`로 V1·A1 클립 수(컷 수+1)와 시퀀스 `end`(컷 전 길이 − `removed_seconds`, 1프레임 이내)를 본다. 결과를 보고하고 저장(`save_project`)은 사용자에게 묻는다.
 
 ## 자막
+
+자막만 요청받았으면 먼저 무음 컷 1번(Premiere 켜기·연결 확인, `get_project_info`의 `path`를 가드로 쓰기)을 한다.
 
 S1. **오디오만 export** — `export_sequence`
   - `output_path`: `C:/.../premiere-auto-edit/cut_audio.wav`
