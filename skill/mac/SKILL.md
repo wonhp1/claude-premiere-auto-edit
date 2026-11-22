@@ -8,7 +8,7 @@ description: >-
   ("자막 만들어줘", "자막 달아줘", "받아쓰기", "subtitle", "캡션")에도 쓴다. 무음은 ffmpeg로 감지하고,
   ripple_remove_timeline_ranges(dry run 후 적용)로 프레임 단위로 자른다. 자막은 export_sequence로 시퀀스 오디오만
   WAV로 뽑아 faster-whisper 단어 타임스탬프 → 쉼 기반 1줄 SRT → create_caption_track으로 자막 트랙을 만든다.
-  execute_extendscript와 unsafe-script 권한은 쓰지 않는다. 시작할 때 원본 레포의 최신 버전과 바뀐 도구를 먼저 확인한다.
+  execute_extendscript와 unsafe-script 권한은 쓰지 않는다. 시작할 때 원본 레포의 최신 버전과 바뀐 도구를 먼저 확인하고, Premiere가 꺼져 있으면 켜서 연결부터 맞춘다.
 ---
 
 # Premiere 무음 자동 컷편집 + 자막 (macOS)
@@ -61,7 +61,17 @@ node ~/.claude/skills/premiere-mcp-setup/scripts/check-upstream.mjs --baseline <
 
 ### 1) 연결과 대상 확인
 
-1. `verify_premiere_connection` → `overall: ready`인지 본다. 아니면 `premiere-mcp-setup` 스킬로 진단한다.
+1. **Premiere 켜기와 연결 확인**: Premiere가 꺼져 있으면 켜는 것부터 한다.
+   ```bash
+   node ~/.claude/skills/premiere-mcp-setup/scripts/ensure-premiere.mjs [--project=<.prproj 절대 경로>]
+   ```
+   - 꺼져 있으면 켜고 커넥터가 붙을 때까지 기다린 뒤 `verify_premiere_connection` 결과를 보여 준다. 켜져 있으면 확인만 한다.
+   - 사용자가 작업할 프로젝트를 말했으면 `--project`로 넘긴다.
+   - `overall: ready`가 아니면 출력의 "참고"를 따른다.
+     - 프로젝트가 없으면 어떤 프로젝트를 쓸지 묻고 `--project`로 다시 실행한다.
+     - 시퀀스가 없으면 어떤 시퀀스를 쓸지 묻고 `set_active_sequence`로 연다.
+     - 커넥터 신호가 없으면 `premiere-mcp-setup` 스킬로 진단한다.
+   - 스크립트가 없으면 MCP `verify_premiere_connection`으로 확인한다.
 2. `get_project_info` → 결과의 `path`를 **이후 모든 Premiere 호출의 `expected_project_path`로 그대로** 넣는다. Premiere가 돌려준 문자열을 쓰면 경로 정규화 문제를 피한다. 저장된 적 없는 프로젝트면 가드를 쓸 수 없으니 사용자에게 저장을 부탁한다.
 3. `get_active_sequence` → 다음을 기록한다.
    - V1 클립의 `name`, `start`, `inPoint`, `end`
@@ -140,6 +150,8 @@ python3 <이 스킬 폴더>/scripts/plan_cut_ranges.py /tmp/premiere_cuts.json \
 ## 자막 (단어 타임스탬프 → 쉼 기반 1줄 자막)
 
 자막은 **지금 타임라인**의 오디오에 맞아야 한다. 컷 뒤에 사람이 더 다듬었을 수도 있으니 옛 컷 목록이 아니라 현재 시퀀스를 그대로 export해서 받아쓴다. 산출물(`cut_audio.wav`, `words.json`, `cut_audio.srt`)은 `<WORK>`에 둔다.
+
+자막만 요청받았으면 먼저 무음 컷 1)의 1번(Premiere 켜기와 연결 확인)과 2번(`get_project_info`의 `path`를 가드로 쓰기)을 한다.
 
 ### S1) 시퀀스 오디오만 WAV로 export
 

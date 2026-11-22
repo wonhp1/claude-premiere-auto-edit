@@ -16,7 +16,8 @@ description: Adobe Premiere Pro용 원본 MCP 서버(npm `premiere-pro-mcp`, Git
 
 원본은 자주 업데이트된다(2026년 10~11월에만 1.25 → 1.31). 그래서 이 스킬에 적힌 명령과 함정은 `upstream.json`의 검증 버전 기준이다. 매번 0단계에서 원본의 최신 상태를 먼저 확인하고, 바뀐 점이 있으면 원본을 따른다.
 
-이 스킬 폴더의 `scripts/`에 스크립트가 셋 있다. 경로는 이 SKILL.md가 있는 폴더 기준이다.
+이 스킬 폴더의 `scripts/`에 스크립트가 넷 있다. 경로는 이 SKILL.md가 있는 폴더 기준이다.
+- `scripts/ensure-premiere.mjs`: Premiere가 꺼져 있으면 켜고, 커넥터가 붙을 때까지(기본 최대 180초) 기다린 뒤 연결 상태를 보여 준다. `--project=<.prproj 경로>`를 주면 그 프로젝트가 활성이 아닐 때 연다. Premiere를 닫거나 저장하지는 않는다. 다른 스킬(premiere-auto-edit 등)도 작업 전에 이 스크립트를 부른다. 도구 호출에는 `scripts/lib-mcp.mjs`를 쓴다.
 - `scripts/check-upstream.mjs`: 원본의 최신 버전, 레포 이동·보관 여부, 최신 릴리스 첨부 파일, 검증 버전 이후 CHANGELOG를 읽어 비교한다. 아무것도 설치하지 않는다.
 - `scripts/preflight.mjs`: 이 컴퓨터의 설치·연결 상태를 읽기 전용으로 점검한다. `--json`을 붙이면 기계용으로 출력한다.
 - `scripts/mcp-call.mjs`: 서버를 stdio로 직접 띄워 도구 하나를 호출한다. 이 세션에서 MCP 도구를 막 등록했다면 도구는 새 세션부터 보이므로, 그 전에 연결을 확인하는 데 쓴다.
@@ -140,9 +141,22 @@ npm view premiere-pro-mcp homepage repository.url
    - `app_menu`로 `["Premiere", "Quit Premiere"]`를 누른다.
    - 메뉴 이름이 다르면 `app_menu`에 `list: ["Premiere"]`를 넘겨 확인한다. 최상위 목록을 보려면 list를 배열로 넘긴다. 문자열 `"null"`은 동작하지 않는다.
    - 저장 확인 대화상자가 뜨면 저장할지 말지를 대신 고르지 말고 사용자에게 묻는다.
-3. **다시 연다.** 프로세스가 사라졌는지 preflight나 `pgrep`으로 확인한 뒤 `open_application`으로 연다.
+3. **다시 연다.** 프로세스가 사라졌는지 preflight나 `pgrep`으로 확인한 뒤 `node <이 스킬 폴더>/scripts/ensure-premiere.mjs`로 켠다.
 
-Premiere가 꺼져 있으면 `open_application`으로 열기만 하면 된다.
+### Premiere가 꺼져 있을 때
+
+```bash
+node <이 스킬 폴더>/scripts/ensure-premiere.mjs [--project=<.prproj 절대 경로>]
+```
+
+- 꺼져 있으면 가장 최신 설치본을 켜고, 커넥터 신호가 올 때까지 기다린 뒤 `verify_premiere_connection` 결과를 보여 준다. 켜는 것은 종료와 달리 사용자 작업을 잃을 일이 없으니 따로 묻지 않고 켠다.
+  - 2026-11-22 이 Mac(Premiere 2027)에서 꺼진 상태부터 프로젝트 열기, `overall: ready`까지 약 11초 걸렸다.
+- 설치본이 여러 개면 최신을 켜고 출력에 알린다. 다른 버전을 원하면 `--app=<.app 또는 .exe 경로>`를 준다.
+- 출력의 "참고" 줄을 따른다.
+  - **열린 프로젝트 없음(홈 화면)**: 어떤 프로젝트를 쓸지 사용자에게 묻고 `--project`로 다시 실행한다. 새 프로젝트가 필요하면 4-4를 따른다.
+  - **활성 시퀀스 없음**: 어떤 시퀀스를 쓸지 묻고 `set_active_sequence`로 연다.
+  - **커넥터 신호가 오지 않음**: 시작 대화상자(충돌 복구, 업데이트·로그인 안내 등)가 떠 있을 수 있다. 스크린샷으로 확인해 처리한 뒤 다시 실행한다.
+- computer use 도구만 있고 스크립트를 쓸 수 없으면 `open_application`으로 켠다.
 
 ### 4-4. 프로젝트 열기
 
